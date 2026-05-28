@@ -1,7 +1,8 @@
-from fastapi.responses import FileResponse
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from api.arbol import ArbolTorneo
 
@@ -17,9 +18,6 @@ app.add_middleware(
 
 torneo_actual = ArbolTorneo(10)
 
-# ==========================================
-# MODELOS DE DATOS
-# ==========================================
 class ConfigTorneo(BaseModel):
     niveles: int
 
@@ -31,14 +29,10 @@ class NodoHijo(BaseModel):
     valor: str
     direccion: str
 
-# Modelo necesario para recibir los datos de la web
 class DatosReconstruccion(BaseModel):
     preorden: list
     inorden: list
 
-# ==========================================
-# FUNCIONES AUXILIARES
-# ==========================================
 def buscar_nodo(nodo_actual, valor_buscado):
     if nodo_actual is None:
         return None
@@ -52,13 +46,13 @@ def buscar_nodo(nodo_actual, valor_buscado):
     return buscar_nodo(nodo_actual.derecho, valor_buscado)
 
 # ==========================================
-# ENDPOINTS
+# LA MAGIA: PYTHON AHORA MUESTRA EL DISEÑO
 # ==========================================
-
 @app.get("/")
 def home():
-    # FastAPI busca y sirve tu diseño directamente
-    return FileResponse("index.html")
+    # Encuentra el index.html sin importar dónde lo ponga Vercel
+    ruta_html = os.path.join(os.path.dirname(os.path.dirname(__file__)), "index.html")
+    return FileResponse(ruta_html)
 
 @app.post("/iniciar")
 def iniciar_torneo(config: ConfigTorneo):
@@ -102,17 +96,15 @@ def obtener_estructura():
         return None
     return torneo_actual.obtener_estructura(torneo_actual.raiz)
 
-# ==========================================
-# ENDPOINT PARA EL MODULO 3
-# ==========================================
 @app.post("/reconstruir")
 def reconstruir_arbol(datos: DatosReconstruccion):
-    # Usamos una instancia temporal para no borrar el arbol principal
-    arbol_temp = ArbolTorneo(10)
-    
-    raiz_reconstruida = arbol_temp.reconstruir_arbol(datos.preorden, datos.inorden)
+    global torneo_actual
+    arbol_nuevo = ArbolTorneo(torneo_actual.max_niveles)
+    raiz_reconstruida = arbol_nuevo.reconstruir_arbol(datos.preorden, datos.inorden)
     
     if not raiz_reconstruida:
-        raise HTTPException(status_code=400, detail="Error: Los arreglos Preorden e Inorden no coinciden matemáticamente.")
+        raise HTTPException(status_code=400, detail="Error: Preorden e Inorden no coinciden.")
         
-    return arbol_temp.obtener_estructura(raiz_reconstruida)
+    arbol_nuevo.raiz = raiz_reconstruida
+    torneo_actual = arbol_nuevo
+    return torneo_actual.obtener_estructura(torneo_actual.raiz)
